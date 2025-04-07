@@ -1,0 +1,27 @@
+name: OWASP ZAP Baseline Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'
+
+jobs:
+  zap_scan:
+    runs-on: ubuntu-latest
+    name: Scan API Endpoints
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      - name: ZAP Scan
+        uses: zaproxy/action-baseline@v0.7.0
+        with:
+          target: 'https://api.staging.fit360.com'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+          allow_issue_writing: false
+          fail_action: true
+          token: ${{ secrets.GITHUB_TOKEN }} 

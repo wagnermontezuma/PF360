@@ -1,0 +1,29 @@
+{
+  "name": "gateway-app",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "ts-node-dev src/main.ts"
+  },
+  "dependencies": {
+    "@apollo/gateway": "^2.7.1",
+    "@nestjs/apollo": "^11.0.0",
+    "@nestjs/common": "^9.0.0",
+    "@nestjs/core": "^9.0.0",
+    "@nestjs/graphql": "^11.0.0",
+    "@nestjs/platform-express": "^9.0.0",
+    "apollo-server-express": "^3.0.0",
+    "graphql": "^16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.0.0"
+  },
+  "main": "src/main.ts",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Gateway GraphQL da Plataforma Fitness 360"
+}

@@ -1,0 +1,66 @@
+type Invoice @key(fields: "id") {
+  id: ID!
+  memberId: ID!
+  contractId: ID!
+  amount: Float!
+  description: String!
+  status: InvoiceStatus!
+  dueDate: DateTime!
+  stripeInvoiceId: String
+  paymentAttempts: [PaymentAttempt!]
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type PaymentAttempt @key(fields: "id") {
+  id: ID!
+  invoice: Invoice!
+  stripePaymentIntentId: String
+  status: PaymentStatus!
+  errorDetails: PaymentError
+  createdAt: DateTime!
+}
+
+type PaymentError {
+  code: String!
+  message: String!
+  declinedCode: String
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
+input CreateInvoiceInput {
+  memberId: ID!
+  contractId: ID!
+  amount: Float!
+  description: String!
+  dueDate: DateTime!
+}
+
+input ProcessPaymentInput {
+  invoiceId: ID!
+  paymentMethodId: String!
+}
+
+type Query {
+  invoices(memberId: ID!): [Invoice!]! @auth(requires: [ADMIN, MANAGER])
+  invoice(id: ID!): Invoice @auth(requires: [ADMIN, MANAGER, MEMBER])
+  memberPaymentHistory(memberId: ID!): [PaymentAttempt!]! @auth(requires: [ADMIN, MANAGER, MEMBER])
+}
+
+type Mutation {
+  createInvoice(input: CreateInvoiceInput!): Invoice! @auth(requires: [ADMIN, MANAGER])
+  processPayment(input: ProcessPaymentInput!): PaymentAttempt! @auth(requires: [ADMIN, MANAGER, MEMBER])
+  cancelInvoice(id: ID!): Invoice! @auth(requires: [ADMIN, MANAGER])
+} 

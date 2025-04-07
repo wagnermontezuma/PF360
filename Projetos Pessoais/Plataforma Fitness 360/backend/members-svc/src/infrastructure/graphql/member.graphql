@@ -1,0 +1,80 @@
+type Member @key(fields: "id") {
+  id: ID!
+  name: String!
+  email: String!
+  cpf: String!
+  phone: String!
+  address: Address
+  contracts: [Contract!]
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Address {
+  street: String!
+  number: String!
+  complement: String
+  city: String!
+  state: String!
+  zipCode: String!
+}
+
+type Contract @key(fields: "id") {
+  id: ID!
+  member: Member!
+  planName: String!
+  monthlyValue: Float!
+  dueDay: Int!
+  status: ContractStatus!
+  startDate: DateTime!
+  endDate: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum ContractStatus {
+  ACTIVE
+  PENDING
+  CANCELLED
+  EXPIRED
+}
+
+input CreateMemberInput {
+  name: String!
+  email: String!
+  cpf: String!
+  phone: String!
+  address: AddressInput
+}
+
+input AddressInput {
+  street: String!
+  number: String!
+  complement: String
+  city: String!
+  state: String!
+  zipCode: String!
+}
+
+input CreateContractInput {
+  memberId: ID!
+  planName: String!
+  monthlyValue: Float!
+  dueDay: Int!
+  startDate: DateTime!
+  endDate: DateTime
+}
+
+type Query {
+  members: [Member!]! @auth(requires: [ADMIN, MANAGER])
+  member(id: ID!): Member @auth(requires: [ADMIN, MANAGER, MEMBER])
+  memberContracts(memberId: ID!): [Contract!]! @auth(requires: [ADMIN, MANAGER, MEMBER])
+}
+
+type Mutation {
+  createMember(input: CreateMemberInput!): Member! @auth(requires: [ADMIN, MANAGER])
+  updateMember(id: ID!, input: CreateMemberInput!): Member! @auth(requires: [ADMIN, MANAGER])
+  createContract(input: CreateContractInput!): Contract! @auth(requires: [ADMIN, MANAGER])
+  cancelContract(id: ID!): Contract! @auth(requires: [ADMIN, MANAGER])
+} 

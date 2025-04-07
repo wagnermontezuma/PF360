@@ -1,0 +1,94 @@
+global:
+  environment: production
+  domain: fitness360.com.br
+
+postgresql:
+  enabled: true
+  auth:
+    database: fitness360
+    username: app
+  primary:
+    persistence:
+      size: 10Gi
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+  master:
+    persistence:
+      size: 5Gi
+
+kafka:
+  enabled: true
+  replicaCount: 3
+  persistence:
+    size: 20Gi
+
+services:
+  core:
+    replicaCount: 2
+    image:
+      repository: ghcr.io/fitness360/core
+      tag: latest
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    
+  members:
+    replicaCount: 2
+    image:
+      repository: ghcr.io/fitness360/members-svc
+      tag: latest
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+
+  payments:
+    replicaCount: 2
+    image:
+      repository: ghcr.io/fitness360/payments
+      tag: latest
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+
+  scheduler:
+    replicaCount: 2
+    image:
+      repository: ghcr.io/fitness360/scheduler
+      tag: latest
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: api.fitness360.com.br
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: fitness360-tls
+      hosts:
+        - api.fitness360.com.br 

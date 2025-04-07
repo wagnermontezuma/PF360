@@ -1,0 +1,90 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  security-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Secret Scanning
+        uses: gitleaks/gitleaks-action@v2
+        
+      - name: SAST Scan
+        uses: github/codeql-action/analyze@v2
+        with:
+          languages: javascript, typescript, go
+
+  test-and-build:
+    needs: security-checks
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [core, payments, scheduler, app-aluno]
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          
+      - name: Install Dependencies
+        run: |
+          cd ${{ matrix.service == 'app-aluno' && 'frontend/app-aluno' || format('backend/{0}', matrix.service) }}
+          pnpm install
+          
+      - name: Run Tests
+        run: pnpm test
+        
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ github.sha }}
+          
+  deploy-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    environment: staging
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v3
+        
+      - name: Deploy to K8s
+        run: |
+          kubectl apply -f infra/helm/staging/
+          
+  deploy-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: 
+      name: production
+      url: https://app.fitness360.com.br
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v3
+        
+      - name: Deploy to K8s
+        run: |
+          kubectl apply -f infra/helm/production/ 

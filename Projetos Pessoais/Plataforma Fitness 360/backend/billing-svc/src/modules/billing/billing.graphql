@@ -1,0 +1,58 @@
+type Invoice {
+  id: ID!
+  memberId: ID!
+  contractId: ID!
+  amount: Float!
+  description: String!
+  dueDate: String!
+  status: InvoiceStatus!
+  createdAt: String!
+  updatedAt: String!
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+type PaymentAttempt {
+  id: ID!
+  invoiceId: ID!
+  paymentMethodId: ID!
+  amount: Float!
+  status: PaymentStatus!
+  createdAt: String!
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+input CreateInvoiceInput {
+  memberId: ID!
+  contractId: ID!
+  amount: Float!
+  description: String!
+  dueDate: String!
+}
+
+input ProcessPaymentInput {
+  invoiceId: ID!
+  paymentMethodId: ID!
+}
+
+type Query {
+  invoices(memberId: ID!): [Invoice!]!
+  invoice(id: ID!): Invoice
+  memberPaymentHistory(memberId: ID!): [PaymentAttempt!]!
+}
+
+type Mutation {
+  createInvoice(input: CreateInvoiceInput!): Invoice!
+  processPayment(input: ProcessPaymentInput!): PaymentAttempt!
+  cancelInvoice(id: ID!): Invoice!
+} 

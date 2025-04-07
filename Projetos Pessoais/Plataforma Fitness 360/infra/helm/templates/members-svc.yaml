@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: members-svc
+  labels:
+    app: members-svc
+spec:
+  replicas: {{ .Values.services.members.replicaCount }}
+  selector:
+    matchLabels:
+      app: members-svc
+  template:
+    metadata:
+      labels:
+        app: members-svc
+    spec:
+      containers:
+        - name: members-svc
+          image: "{{ .Values.services.members.image.repository }}:{{ .Values.services.members.image.tag }}"
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: {{ .Values.global.environment }}
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: members-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: members-config
+                  key: DB_PORT
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: members-secrets
+                  key: DB_USER
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: members-secrets
+                  key: DB_PASS
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: members-config
+                  key: KAFKA_BROKERS
+          resources:
+            {{- toYaml .Values.services.members.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: members-svc
+spec:
+  selector:
+    app: members-svc
+  ports:
+    - port: 80
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: members-config
+data:
+  DB_HOST: "postgresql"
+  DB_PORT: "5432"
+  KAFKA_BROKERS: "kafka:9092"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: members-secrets
+type: Opaque
+data:
+  DB_USER: {{ .Values.postgresql.auth.username | b64enc }}
+  DB_PASS: {{ .Values.postgresql.auth.password | b64enc }} 
