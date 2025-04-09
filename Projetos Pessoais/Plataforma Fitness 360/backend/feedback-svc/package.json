@@ -18,10 +18,11 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "docker:build": "docker build -t feedback-svc .",
-    "docker:run": "docker run -d --name feedback-svc -p 3005:3005 --env-file .env feedback-svc"
+    "docker:run": "docker run -d --name feedback-svc -p 3005:3005 --env-file .env feedback-svc",
+    "prisma:seed": "ts-node prisma/seed.ts"
   },
   "keywords": [],
   "author": "",
@@ -35,6 +36,7 @@
     "@nestjs/passport": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/swagger": "^7.3.0",
+    "@nestjs/throttler": "^6.4.0",
     "@nestjs/typeorm": "^11.0.0",
     "@prisma/client": "^6.5.0",
     "bcrypt": "^5.1.1",
