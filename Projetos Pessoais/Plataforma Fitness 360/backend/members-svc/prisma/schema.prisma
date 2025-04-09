@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Member {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  name      String
+  email     String   @unique
+  phone     String?
+  birthDate DateTime
+  height    Float
+  weight    Float
+  goals     String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("members")
+}
+
+model Workout {
+  id          String   @id @default(uuid())
+  memberId    String
+  name        String
+  description String
+  duration    Int
+  calories    Int
+  date        DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("workouts")
+}
+
+model Progress {
+  id        String   @id @default(uuid())
+  memberId  String
+  weight    Float
+  date      DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("progress")
+} 

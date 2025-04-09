@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend/app-aluno
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - NEXT_PUBLIC_AUTH_API_URL=http://auth-api:3001
+      - NEXT_PUBLIC_MEMBERS_API_URL=http://members-api:3003
+      - NEXT_PUBLIC_BILLING_API_URL=http://billing-api:3004
+      - NEXT_PUBLIC_FEEDBACK_API_URL=http://feedback-api:3005
+    depends_on:
+      - auth-api
+      - members-api
+      - billing-api
+      - feedback-api
+    networks:
+      - fitness360-network
+
+  auth-api:
+    build:
+      context: ./backend/auth-svc
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@auth-db:5432/auth360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=production
+      - FRONTEND_URL=http://localhost:3002
+    depends_on:
+      - auth-db
+    networks:
+      - fitness360-network
+
+  members-api:
+    build:
+      context: ./backend/members-svc
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@members-db:5432/members360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=production
+      - FRONTEND_URL=http://localhost:3002
+    depends_on:
+      - members-db
+    networks:
+      - fitness360-network
+
+  billing-api:
+    build:
+      context: ./backend/billing-svc
+      dockerfile: Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@billing-db:5432/billing360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=production
+      - FRONTEND_URL=http://localhost:3002
+    depends_on:
+      - billing-db
+    networks:
+      - fitness360-network
+
+  feedback-api:
+    build:
+      context: ./backend/feedback-svc
+      dockerfile: Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@feedback-db:5432/feedback360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=production
+      - FRONTEND_URL=http://localhost:3002
+    depends_on:
+      - feedback-db
+    networks:
+      - fitness360-network
+
+  auth-db:
+    image: postgres:15
+    ports:
+      - "5431:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=auth360
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+  members-db:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=members360
+    volumes:
+      - members_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+  billing-db:
+    image: postgres:15
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=billing360
+    volumes:
+      - billing_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+  feedback-db:
+    image: postgres:15
+    ports:
+      - "5434:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=feedback360
+    volumes:
+      - feedback_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+volumes:
+  auth_postgres_data:
+  members_postgres_data:
+  billing_postgres_data:
+  feedback_postgres_data:
+
+networks:
+  fitness360-network:
+    name: fitness360-network 

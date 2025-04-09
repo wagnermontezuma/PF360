@@ -1,0 +1,29 @@
+groups:
+  - name: fitness360_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status="500"}[1m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alta taxa de erros 500 detectada"
+          description: "{{ $value }}% das requisições estão resultando em erro 500"
+
+      - alert: LowFeedbackScore
+        expr: avg_over_time(feedback_score[24h]) < 3.5
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Média de feedback abaixo do esperado"
+          description: "A média de feedback nas últimas 24h está {{ $value }}"
+
+      - alert: HighLoginFailureRate
+        expr: rate(auth_login_failures_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alta taxa de falhas de login"
+          description: "{{ $value }} falhas de login por minuto nos últimos 5 minutos" 
