@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 
 interface DashboardMetricsData {
   faturamentoMensal: number;
@@ -82,49 +81,41 @@ export function DashboardMetrics() {
     <div className="space-y-8">
       {/* Cards de Métricas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-gray-800 rounded-xl p-6 shadow-lg"
+        <div
+          className="bg-gray-800 rounded-xl p-6 shadow-lg transform transition-all duration-300 hover:scale-105 opacity-0 animate-fadeIn"
+          style={{ animationDelay: '100ms', animationFillMode: 'forwards' }}
         >
           <h3 className="text-gray-400 mb-2">Faturamento Mensal</h3>
           <p className="text-2xl font-bold text-white">
             R$ {metrics?.faturamentoMensal?.toLocaleString('pt-BR') ?? 0}
           </p>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-gray-800 rounded-xl p-6 shadow-lg"
+        <div
+          className="bg-gray-800 rounded-xl p-6 shadow-lg transform transition-all duration-300 hover:scale-105 opacity-0 animate-fadeIn"
+          style={{ animationDelay: '200ms', animationFillMode: 'forwards' }}
         >
           <h3 className="text-gray-400 mb-2">Planos Ativos</h3>
           <p className="text-2xl font-bold text-white">{metrics?.planosAtivos ?? 0}</p>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-gray-800 rounded-xl p-6 shadow-lg"
+        <div
+          className="bg-gray-800 rounded-xl p-6 shadow-lg transform transition-all duration-300 hover:scale-105 opacity-0 animate-fadeIn"
+          style={{ animationDelay: '300ms', animationFillMode: 'forwards' }}
         >
           <h3 className="text-gray-400 mb-2">Ticket Médio</h3>
           <p className="text-2xl font-bold text-white">
             R$ {metrics?.ticketMedio?.toLocaleString('pt-BR') ?? 0}
           </p>
-        </motion.div>
+        </div>
       </div>
 
       {/* Gráficos e Tabelas */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Distribuição de Planos */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.4 }}
-          className="bg-gray-800 rounded-xl p-6 shadow-lg"
+        <div
+          className="bg-gray-800 rounded-xl p-6 shadow-lg transform transition-all duration-300 hover:scale-[1.02] opacity-0 animate-fadeIn"
+          style={{ animationDelay: '400ms', animationFillMode: 'forwards' }}
         >
           <h3 className="text-xl font-semibold mb-4 text-white">Distribuição de Planos</h3>
           <div className="space-y-4">
@@ -141,14 +132,12 @@ export function DashboardMetrics() {
               <span>{metrics?.planosPorTipo?.enterprise ?? 0}</span>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Últimas Faturas */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5 }}
-          className="bg-gray-800 rounded-xl p-6 shadow-lg"
+        <div
+          className="bg-gray-800 rounded-xl p-6 shadow-lg transform transition-all duration-300 hover:scale-[1.02] opacity-0 animate-fadeIn"
+          style={{ animationDelay: '500ms', animationFillMode: 'forwards' }}
         >
           <h3 className="text-xl font-semibold mb-4 text-white">Últimas Faturas</h3>
           <div className="space-y-4">
@@ -166,7 +155,7 @@ export function DashboardMetrics() {
               </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );
