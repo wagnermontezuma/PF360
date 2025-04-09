@@ -1,40 +1,79 @@
-# Changelog
+# Changelog - Plataforma Fitness 360
 
-## [Sprint REST Core] - 2024-03-15
+Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
+
+O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
+e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
+
+## [1.0.0-beta.1] - 2025-04-09
+
+### Alterações
+
+#### Frontend
+- Removida dependência do ChakraUI da aplicação
+- Substituído ChakraProvider no _app.tsx
+- Removido arquivo de tema do ChakraUI
+- Corrigida configuração em next.config.ts
+- Implementadas páginas usando o Pages Router do Next.js
+- Resolvido erro 500 de renderização na página de nutrição
+- Mantidos estilos com Tailwind CSS
+- Otimizada a estrutura de componentes
+
+### Correções de Bugs
+- Corrigido erro "Cannot read properties of undefined (reading '_config')" no ChakraProvider
+- Resolvido problema de rota 404 em /dashboard/nutrition
+- Corrigido conflito entre App Router e Pages Router
+
+## [0.1.0] - 2023-11-15
 
 ### Adicionado
-- Implementação do sistema de autenticação com JWT
-  - Rota POST /login funcional
-  - Proteção de rotas com guard JWT
-  - Armazenamento de token no frontend
-  - Redirecionamento após login
 
-- Criação de APIs REST
-  - GET /members - Lista de membros
-  - GET /dashboard-metrics - Métricas do dashboard
-  - POST /feedback - Registro de feedbacks
-  - Documentação Swagger em todos os serviços
+#### Geral
+- Estrutura inicial do projeto monolítico
+- Configuração de ambiente de desenvolvimento com Docker
+- Setup inicial de CI/CD com GitHub Actions
 
-- Frontend
-  - Página de login com formulário funcional
-  - Dashboard com dados mockados
-  - Hook useAuth para gerenciamento de autenticação
-  - Proteção de rotas no frontend
+#### Backend
+- Serviço de autenticação com JWT e refresh tokens
+- Serviço de notificações (e-mail, push e em tempo real via WebSockets)
+- Serviço de treinos com gerenciamento de exercícios e rotinas
+- Serviço de nutrição com planos alimentares e acompanhamento
+- API RESTful documentada com Swagger
+- Integração com Prisma ORM para acesso ao banco de dados
+
+#### Frontend
+- Aplicação mobile-first responsiva para alunos
+- Tela de login e autenticação
+- Dashboard com métricas e resumo de atividades
+- Página de perfil do usuário com edição de informações
+- Histórico de treinos com filtros e detalhamento
+- Layout padronizado com navegação intuitiva
+
+#### Segurança
+- Autenticação JWT com rotação de refresh tokens
+- Proteção contra ataques CSRF
+- Rate limiting nas APIs
+- Validação e sanitização de dados de entrada
+- Rollback automático em caso de falhas no deploy
+
+#### DevOps
+- Pipeline de CI/CD completo (testes, build, deploy)
+- Verificação de saúde automática pós-deploy
+- Sistema de rollback automático em caso de falhas
+- Backup automático pré-deploy
+- Documentação técnica e de segurança
 
 ### Modificado
-- Estrutura do projeto dividida em microserviços
-  - auth-svc (3001)
-  - members-svc (3003)
-  - billing-svc (3004)
-  - feedback-svc (3005)
+- Transição de MVP para versão beta com funcionalidades completas
 
-### Documentação
-- README.md atualizado com instruções de configuração
-- API_REFERENCE.md criado com documentação das rotas
-- Swagger UI disponível em /api em cada serviço
+### Corrigido
+- Otimização de desempenho no carregamento de histórico de treinos
+- Correção na exibição de gráficos em dispositivos móveis
+- Melhorias na validação de campos do formulário de perfil
 
-### Pendente
-- Integração com banco de dados real
-- Testes unitários e E2E
-- Configuração do Kafka para eventos
-- Métricas no Grafana 
+## [0.0.1] - 2023-10-15
+
+### Adicionado
+- Configuração inicial do projeto
+- Prova de conceito para serviços de autenticação e treinos
+- Protótipo de interface do aluno 
