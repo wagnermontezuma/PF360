@@ -1,14 +1,68 @@
 groups:
   - name: fitness360_alerts
     rules:
+      - alert: HighRequestLatency
+        expr: http_request_duration_milliseconds_sum{quantile="0.9"} > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alta latência nos requests"
+          description: "A latência de requisição para {{ $labels.service }} está acima de 1s para 90% das requisições por mais de 5 minutos"
+
       - alert: HighErrorRate
-        expr: rate(http_requests_total{status="500"}[1m]) > 0.1
+        expr: rate(http_request_errors_total[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taxa de erro elevada"
+          description: "Taxa de erro em {{ $labels.service }} está acima de 5% por mais de 5 minutos"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Serviço fora do ar"
+          description: "O serviço {{ $labels.service }} está fora do ar"
+
+      - alert: DatabaseConnectionFailure
+        expr: database_connection_failures_total > 0
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "Alta taxa de erros 500 detectada"
-          description: "{{ $value }}% das requisições estão resultando em erro 500"
+          summary: "Falha na conexão com o banco de dados"
+          description: "O serviço {{ $labels.service }} está tendo problemas de conexão com o banco de dados"
+
+      - alert: HighKafkaLag
+        expr: kafka_consumer_lag > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alto lag no Kafka"
+          description: "O consumer {{ $labels.group }} está com lag acima de 1000 mensagens por mais de 10 minutos"
+
+      - alert: HighMemoryUsage
+        expr: process_memory_usage_bytes / process_memory_limit_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Uso elevado de memória"
+          description: "O serviço {{ $labels.service }} está usando mais de 80% da memória alocada por mais de 5 minutos"
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Uso elevado de CPU"
+          description: "O serviço {{ $labels.service }} está usando mais de 80% da CPU por mais de 5 minutos"
 
       - alert: LowFeedbackScore
         expr: avg_over_time(feedback_score[24h]) < 3.5

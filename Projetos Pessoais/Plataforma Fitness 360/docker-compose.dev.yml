@@ -1,0 +1,446 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend/app-aluno
+      dockerfile: Dockerfile
+    ports:
+      - "3006:3006"
+    environment:
+      - PORT=3006
+      - NEXT_PUBLIC_AUTH_API_URL=http://localhost:3001
+      - NEXT_PUBLIC_MEMBERS_API_URL=http://localhost:3003
+      - NEXT_PUBLIC_BILLING_API_URL=http://localhost:3004
+      - NEXT_PUBLIC_FEEDBACK_API_URL=http://localhost:3005
+      - NEXT_PUBLIC_WORKOUTS_API_URL=http://localhost:3007
+      - NEXT_PUBLIC_NUTRITION_API_URL=http://localhost:3008
+      - NEXT_PUBLIC_NOTIFICATIONS_API_URL=http://localhost:3009
+    volumes:
+      - ./frontend/app-aluno:/app
+      - /app/node_modules
+    depends_on:
+      - auth-api
+      - members-api
+      - billing-api
+      - feedback-api
+      - workouts-api
+      - nutrition-api
+      - notifications-api
+    networks:
+      - fitness360-network
+    command: npm run dev
+
+  frontend-staff:
+    build:
+      context: ./frontend/app-staff
+      dockerfile: Dockerfile
+    ports:
+      - "3007:3007"
+    environment:
+      - PORT=3007
+      - NEXT_PUBLIC_AUTH_API_URL=http://localhost:3001
+      - NEXT_PUBLIC_MEMBERS_API_URL=http://localhost:3003
+      - NEXT_PUBLIC_WORKOUTS_API_URL=http://localhost:3007
+      - NEXT_PUBLIC_NUTRITION_API_URL=http://localhost:3008
+      - NEXT_PUBLIC_BILLING_API_URL=http://localhost:3004
+      - NEXT_PUBLIC_FEEDBACK_API_URL=http://localhost:3005
+      - NEXT_PUBLIC_NOTIFICATIONS_API_URL=http://localhost:3009
+    volumes:
+      - ./frontend/app-staff:/app
+      - /app/node_modules
+    depends_on:
+      - auth-api
+      - members-api
+      - workouts-api
+      - nutrition-api
+      - billing-api
+      - feedback-api
+      - notifications-api
+    networks:
+      - fitness360-network
+    command: npm run dev
+
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - AUTH_SERVICE_URL=http://auth-api:3001
+      - MEMBERS_SERVICE_URL=http://members-api:3003
+      - BILLING_SERVICE_URL=http://billing-api:3004
+      - FEEDBACK_SERVICE_URL=http://feedback-api:3005
+      - WORKOUTS_SERVICE_URL=http://workouts-api:3007
+      - NUTRITION_SERVICE_URL=http://nutrition-api:3008
+      - NOTIFICATIONS_SERVICE_URL=http://notifications-api:3009
+      - JWT_SECRET=sua_chave_secreta_aqui
+    depends_on:
+      - auth-api
+      - members-api
+      - billing-api
+      - feedback-api
+      - workouts-api
+      - nutrition-api
+      - notifications-api
+    networks:
+      - fitness360-network
+    volumes:
+      - ./backend/api-gateway:/app
+      - /app/node_modules
+    command: npm run start:dev
+
+  auth-api:
+    build:
+      context: ./backend/auth-svc
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@auth-db:5432/auth360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=development
+      - FRONTEND_URL=http://localhost:3006
+      - KAFKA_BROKERS=kafka:9092
+      - METRICS_PREFIX=auth_service
+    depends_on:
+      - auth-db
+      - kafka
+    networks:
+      - fitness360-network
+    volumes:
+      - ./backend/auth-svc:/app
+      - /app/node_modules
+    command: npm run start:dev
+
+  members-api:
+    build:
+      context: ./backend/members-svc
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@members-db:5432/members360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=development
+      - FRONTEND_URL=http://localhost:3006
+      - KAFKA_BROKERS=kafka:9092
+      - METRICS_PREFIX=members_service
+    depends_on:
+      - members-db
+      - kafka
+    networks:
+      - fitness360-network
+    volumes:
+      - ./backend/members-svc:/app
+      - /app/node_modules
+    command: npm run start:dev
+
+  billing-api:
+    build:
+      context: ./backend/billing-svc
+      dockerfile: Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@billing-db:5432/billing360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=development
+      - FRONTEND_URL=http://localhost:3006
+      - KAFKA_BROKERS=kafka:9092
+      - METRICS_PREFIX=billing_service
+    depends_on:
+      - billing-db
+      - kafka
+    networks:
+      - fitness360-network
+    volumes:
+      - ./backend/billing-svc:/app
+      - /app/node_modules
+    command: npm run start:dev
+
+  feedback-api:
+    build:
+      context: ./backend/feedback-svc
+      dockerfile: Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@feedback-db:5432/feedback360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=development
+      - FRONTEND_URL=http://localhost:3006
+      - KAFKA_BROKERS=kafka:9092
+      - METRICS_PREFIX=feedback_service
+    depends_on:
+      - feedback-db
+      - kafka
+    networks:
+      - fitness360-network
+    volumes:
+      - ./backend/feedback-svc:/app
+      - /app/node_modules
+    command: npm run start:dev
+
+  workouts-api:
+    build:
+      context: ./backend/workouts-svc
+      dockerfile: Dockerfile
+    ports:
+      - "3007:3007"
+    environment:
+      - PORT=3007
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@workouts-db:5432/workouts360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=development
+      - FRONTEND_URL=http://localhost:3006
+      - KAFKA_BROKERS=kafka:9092
+      - METRICS_PREFIX=workouts_service
+    depends_on:
+      - workouts-db
+      - kafka
+    networks:
+      - fitness360-network
+    volumes:
+      - ./backend/workouts-svc:/app
+      - /app/node_modules
+    command: npm run start:dev
+
+  nutrition-api:
+    build:
+      context: ./backend/nutrition-svc
+      dockerfile: Dockerfile
+    ports:
+      - "3008:3008"
+    environment:
+      - PORT=3008
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@nutrition-db:5432/nutrition360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=development
+      - FRONTEND_URL=http://localhost:3006
+      - KAFKA_BROKERS=kafka:9092
+      - METRICS_PREFIX=nutrition_service
+    depends_on:
+      - nutrition-db
+      - kafka
+    networks:
+      - fitness360-network
+    volumes:
+      - ./backend/nutrition-svc:/app
+      - /app/node_modules
+    command: npm run start:dev
+
+  notifications-api:
+    build:
+      context: ./backend/notifications-svc
+      dockerfile: Dockerfile
+    ports:
+      - "3009:3009"
+    environment:
+      - PORT=3009
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@notifications-db:5432/notifications360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=development
+      - FRONTEND_URL=http://localhost:3006
+      - KAFKA_BROKERS=kafka:9092
+      - METRICS_PREFIX=notifications_service
+      - SMTP_HOST=smtp.example.com
+      - SMTP_PORT=587
+      - SMTP_USER=no-reply@fitness360.com
+      - SMTP_PASS=email_password
+    depends_on:
+      - notifications-db
+      - kafka
+    networks:
+      - fitness360-network
+    volumes:
+      - ./backend/notifications-svc:/app
+      - /app/node_modules
+    command: npm run start:dev
+
+  auth-db:
+    image: postgres:15
+    ports:
+      - "5431:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=auth360
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+  members-db:
+    image: postgres:15
+    ports:
+      - "5435:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=members360
+    volumes:
+      - members_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+  billing-db:
+    image: postgres:15
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=billing360
+    volumes:
+      - billing_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+  feedback-db:
+    image: postgres:15
+    ports:
+      - "5434:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=feedback360
+    volumes:
+      - feedback_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+  workouts-db:
+    image: postgres:15
+    ports:
+      - "5436:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=workouts360
+    volumes:
+      - workouts_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+  nutrition-db:
+    image: postgres:15
+    ports:
+      - "5437:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=nutrition360
+    volumes:
+      - nutrition_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+  notifications-db:
+    image: postgres:15
+    ports:
+      - "5438:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=notifications360
+    volumes:
+      - notifications_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+  redis:
+    image: redis:7.0-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - fitness360-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - fitness360-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - fitness360-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: fitness360-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - fitness360-network
+
+  kafka-setup:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      - kafka
+    command: >
+      bash -c "
+        echo -e 'Esperando Kafka estar disponível...'
+        cub kafka-ready -b kafka:9092 1 120
+        echo -e 'Criando tópicos do Kafka...'
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 3 --replication-factor 1 --topic billing-events
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 3 --replication-factor 1 --topic feedback-events
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 3 --replication-factor 1 --topic member-events
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 3 --replication-factor 1 --topic notification-events
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 3 --replication-factor 1 --topic workout-events
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 3 --replication-factor 1 --topic nutrition-events
+        echo -e 'Tópicos criados com sucesso'
+        kafka-topics --list --bootstrap-server kafka:9092
+      "
+    networks:
+      - fitness360-network
+
+volumes:
+  auth_postgres_data:
+  members_postgres_data:
+  billing_postgres_data:
+  feedback_postgres_data:
+  workouts_postgres_data:
+  nutrition_postgres_data:
+  notifications_postgres_data:
+  redis_data:
+
+networks:
+  fitness360-network:
+    name: fitness360-network 

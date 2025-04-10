@@ -1,0 +1,114 @@
+name: CI/CD Frontend Staff
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'frontend/app-staff/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'frontend/app-staff/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend/app-staff
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: './frontend/app-staff/package-lock.json'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Lint
+      run: npm run lint
+
+    - name: Type check
+      run: npx tsc --noEmit
+
+    - name: Run tests
+      run: npm test
+
+    - name: Build
+      run: npm run build
+
+    - name: Cache build output
+      uses: actions/cache@v3
+      with:
+        path: ./frontend/app-staff/.next
+        key: ${{ runner.os }}-nextjs-${{ github.sha }}
+
+  docker:
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend/app-staff
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Login to DockerHub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+        images: fitness360/app-staff
+        tags: |
+          type=ref,event=branch
+          type=sha,format=short
+          latest
+
+    - name: Build and push
+      uses: docker/build-push-action@v4
+      with:
+        context: ./frontend/app-staff
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=registry,ref=fitness360/app-staff:latest
+        cache-to: type=inline
+
+  deploy-staging:
+    needs: docker
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: staging
+    
+    steps:
+    - name: Deploy to staging
+      run: |
+        echo "Deploying to staging environment"
+        # Adicione aqui os comandos para implantar no ambiente de staging
+        # Por exemplo, atualizar configuração do Kubernetes, executar scripts, etc.
+
+  deploy-production:
+    needs: docker
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: Deploy to production
+      run: |
+        echo "Deploying to production environment"
+        # Adicione aqui os comandos para implantar no ambiente de produção 

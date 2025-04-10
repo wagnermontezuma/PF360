@@ -9,10 +9,43 @@ async function bootstrap() {
   // Configuração do Swagger
   const config = new DocumentBuilder()
     .setTitle('Billing Service - Fitness 360')
-    .setDescription('Serviço de faturamento da plataforma Fitness 360')
+    .setDescription(`
+      API de Faturamento da Plataforma Fitness 360.
+      
+      ## Funcionalidades
+      
+      - Métricas de faturamento para dashboard
+      - Informações de planos e pagamentos
+      - Histórico de faturas e cobranças
+      - Integração com sistema financeiro
+      
+      ## Autenticação
+      
+      Esta API utiliza autenticação via Bearer Token JWT obtido pelo serviço de autenticação. 
+      Para todos os endpoints, inclua o token no header Authorization no formato: \`Bearer {seu_token}\`.
+      
+      ## Rate Limiting
+      
+      A API possui limite de 10 requisições por minuto por IP.
+    `)
     .setVersion('1.0')
-    .addTag('billing')
-    .addBearerAuth()
+    .setContact('Equipe Fitness 360', 'https://fitness360.com.br', 'api@fitness360.com.br')
+    .setLicense('MIT License', 'https://opensource.org/licenses/MIT')
+    .addBearerAuth(
+      { 
+        type: 'http', 
+        scheme: 'bearer', 
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        description: 'Enter JWT token',
+        in: 'header'
+      },
+      'access-token',
+    )
+    .addTag('billing', 'Endpoints de faturamento e cobrança')
+    .addTag('dashboard', 'Métricas para dashboard financeiro')
+    .addTag('invoices', 'Gerenciamento de faturas')
+    .addServer('http://localhost:3004', 'Servidor local')
     .build();
     
   const document = SwaggerModule.createDocument(app, config);

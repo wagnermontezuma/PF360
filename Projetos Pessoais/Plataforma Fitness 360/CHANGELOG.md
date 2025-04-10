@@ -5,6 +5,19 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [1.1.0] - 2024-04-10
+
+### Added
+- Unificação dos repositórios plataformafitness360 e PF360
+- Migração do histórico de commits relevantes
+- Atualização da estrutura de diretórios
+- Melhorias na documentação
+
+### Changed
+- Consolidação da arquitetura do projeto
+- Otimização da estrutura de monorepo
+- Padronização de nomenclatura em todos os módulos
+
 ## [1.0.0-beta.1] - 2025-04-09
 
 ### Alterações

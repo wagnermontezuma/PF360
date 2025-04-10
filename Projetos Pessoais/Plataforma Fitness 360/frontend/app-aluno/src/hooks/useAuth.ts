@@ -8,6 +8,7 @@ interface User {
   email: string;
   name: string;
   role?: string;
+  token?: string;
 }
 
 interface AuthState {
@@ -27,7 +28,8 @@ const MOCK_USER = {
   id: '1234567890',
   email: 'usuario@email.com',
   name: 'Usuário Teste',
-  role: 'ADMIN'
+  role: 'ADMIN',
+  token: MOCK_TOKEN
 };
 
 export function useAuth() {
@@ -55,7 +57,7 @@ export function useAuth() {
       // Simulando verificação de token
       console.log('Token encontrado, simulando autenticação');
       setState({
-        user: MOCK_USER,
+        user: { ...MOCK_USER, token },
         isAuthenticated: true,
         isLoading: false
       });
@@ -73,24 +75,33 @@ export function useAuth() {
 
   const login = async (email: string, password: string): Promise<void> => {
     try {
-      console.log('Iniciando tentativa de login...');
+      console.log('Iniciando tentativa de login com:', email, password);
       setState(prev => ({ ...prev, isLoading: true }));
       
-      // Simulando verificação de credenciais
-      if (email === 'usuario@email.com' && password === 'senha123') {
+      // Verificar credenciais (case-insensitive para email)
+      if (email.toLowerCase() === 'usuario@email.com' && password === 'senha123') {
         console.log('Credenciais válidas, simulando login com sucesso');
         
         // Simulando resposta do backend
         localStorage.setItem('token', MOCK_TOKEN);
         
+        const userWithToken = {
+          ...MOCK_USER,
+          token: MOCK_TOKEN
+        };
+        
         setState({
-          user: MOCK_USER,
+          user: userWithToken,
           isAuthenticated: true,
           isLoading: false
         });
 
-        router.push('/dashboard');
+        // Adicionando um pequeno atraso para simular o processo de autenticação
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 500);
       } else {
+        console.error('Credenciais inválidas:', email, password);
         throw new Error('Credenciais inválidas');
       }
     } catch (error) {

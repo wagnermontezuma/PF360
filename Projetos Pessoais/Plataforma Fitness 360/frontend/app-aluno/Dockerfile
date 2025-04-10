@@ -11,6 +11,7 @@ COPY . .
 
 RUN pnpm build
 
-EXPOSE 3002
+ENV PORT=3006
+EXPOSE 3006
 
 CMD ["pnpm", "start"] 

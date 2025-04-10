@@ -16,6 +16,19 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
-    "noFallthroughCasesInSwitch": false
-  }
+    "noFallthroughCasesInSwitch": false,
+    "resolveJsonModule": true,
+    "paths": {
+      "@app/*": ["src/*"],
+      "@billing/*": ["src/billing/*"],
+      "@auth/*": ["src/auth/*"],
+      "@prisma/*": ["src/prisma/*"],
+      "@common/*": ["src/common/*"],
+      "@domain/*": ["src/domain/*"],
+      "@application/*": ["src/application/*"]
+    },
+    "esModuleInterop": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 } 

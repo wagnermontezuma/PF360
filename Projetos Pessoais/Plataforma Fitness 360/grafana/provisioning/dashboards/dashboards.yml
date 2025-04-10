@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: 'Fitness360'
+    orgId: 1
+    folder: 'Fitness360'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards 

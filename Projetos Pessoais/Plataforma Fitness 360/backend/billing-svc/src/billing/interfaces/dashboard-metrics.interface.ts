@@ -10,6 +10,12 @@ export class DashboardMetrics {
   @ApiProperty({ example: 350.00, description: 'Ticket médio dos planos' })
   ticketMedio: number;
 
+  @ApiProperty({ example: 12500.00, description: 'Total pago no mês atual' })
+  totalPago: number;
+
+  @ApiProperty({ example: 5, description: 'Número de alunos inadimplentes' })
+  inadimplentes: number;
+
   @ApiProperty({ description: 'Métricas gerais' })
   metricas: {
     receitaTotal: number;

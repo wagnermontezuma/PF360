@@ -1,25 +1,54 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateFeedbackDto } from './feedback.entity';
+import { CreateFeedbackDto } from './dto/create-feedback.dto';
+import { UpdateFeedbackDto } from './dto/update-feedback.dto';
+import { KafkaService, KafkaTopics } from '../common/kafka';
 
 @Injectable()
 export class FeedbackService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private kafkaService: KafkaService,
+  ) {}
 
-  async create(createFeedbackDto: CreateFeedbackDto) {
-    return this.prisma.feedback.create({
-      data: createFeedbackDto,
+  async create(createFeedbackDto: CreateFeedbackDto, userId: string) {
+    const feedback = await this.prisma.feedback.create({
+      data: {
+        nota: createFeedbackDto.nota,
+        comentario: createFeedbackDto.comentario,
+        userId,
+      },
     });
+
+    // Emitir evento para o Kafka quando um feedback for criado
+    await this.kafkaService.emit({
+      topic: KafkaTopics.FEEDBACK_CREATED,
+      value: {
+        id: feedback.id,
+        userId: feedback.userId,
+        nota: feedback.nota,
+        comentario: feedback.comentario,
+        createdAt: feedback.createdAt,
+      },
+    });
+
+    return feedback;
   }
 
-  async findAll() {
+  findAll() {
     return this.prisma.feedback.findMany();
   }
 
   async findOne(id: string) {
-    return this.prisma.feedback.findUnique({
+    const feedback = await this.prisma.feedback.findUnique({
       where: { id },
     });
+
+    if (!feedback) {
+      throw new NotFoundException(`Feedback with ID ${id} not found`);
+    }
+
+    return feedback;
   }
 
   async findByUserId(userId: string) {
@@ -28,15 +57,17 @@ export class FeedbackService {
     });
   }
 
-  async update(id: string, updateFeedbackDto: Partial<CreateFeedbackDto>) {
-    return this.prisma.feedback.update({
+  async update(id: string, updateFeedbackDto: UpdateFeedbackDto) {
+    const feedback = await this.prisma.feedback.update({
       where: { id },
       data: updateFeedbackDto,
     });
+
+    return feedback;
   }
 
   async remove(id: string) {
-    return this.prisma.feedback.delete({
+    await this.prisma.feedback.delete({
       where: { id },
     });
   }

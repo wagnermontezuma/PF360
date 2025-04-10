@@ -1,0 +1,80 @@
+name: Docker Build & Publish
+
+on:
+  push:
+    branches: [ "develop" ]
+    # Publish semver tags as releases
+    tags: [ 'v*.*.*' ]
+
+env:
+  REGISTRY: ghcr.io
+  # github.repository as <account>/<repo>
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      # This is used to authenticate to GHCR
+      id-token: write
+
+    strategy:
+      matrix:
+        service: [frontend, auth-svc, members-svc, billing-svc, feedback-svc, notifications-svc, workouts-svc, nutrition-svc, api-gateway]
+        include:
+          - service: frontend
+            context: ./frontend/app-aluno
+          - service: auth-svc
+            context: ./backend/auth-svc
+          - service: members-svc
+            context: ./backend/members-svc
+          - service: billing-svc
+            context: ./backend/billing-svc
+          - service: feedback-svc
+            context: ./backend/feedback-svc
+          - service: notifications-svc
+            context: ./backend/notifications-svc
+          - service: workouts-svc
+            context: ./backend/workouts-svc
+          - service: nutrition-svc
+            context: ./backend/nutrition-svc
+          - service: api-gateway
+            context: ./backend/api-gateway
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Login against registry
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Extract metadata for Docker
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch,suffix=-dev
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      # Build and push Docker image
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max 

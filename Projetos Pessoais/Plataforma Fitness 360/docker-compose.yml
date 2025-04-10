@@ -6,9 +6,9 @@ services:
       context: ./frontend/app-aluno
       dockerfile: Dockerfile
     ports:
-      - "3002:3002"
+      - "3006:3006"
     environment:
-      - PORT=3002
+      - PORT=3006
       - NEXT_PUBLIC_AUTH_API_URL=http://auth-api:3001
       - NEXT_PUBLIC_MEMBERS_API_URL=http://members-api:3003
       - NEXT_PUBLIC_BILLING_API_URL=http://billing-api:3004
@@ -18,6 +18,26 @@ services:
       - members-api
       - billing-api
       - feedback-api
+    networks:
+      - fitness360-network
+
+  frontend-staff:
+    build:
+      context: ./frontend/app-staff
+      dockerfile: Dockerfile
+    ports:
+      - "3007:3007"
+    environment:
+      - PORT=3007
+      - NEXT_PUBLIC_AUTH_API_URL=http://auth-api:3001
+      - NEXT_PUBLIC_MEMBERS_API_URL=http://members-api:3003
+      - NEXT_PUBLIC_WORKOUTS_API_URL=http://workouts-api:3005
+      - NEXT_PUBLIC_NUTRITION_API_URL=http://nutrition-api:3006
+    depends_on:
+      - auth-api
+      - members-api
+      - workouts-api
+      - nutrition-api
     networks:
       - fitness360-network
 
@@ -32,9 +52,12 @@ services:
       - DATABASE_URL=postgresql://fitness360:fitness360pass@auth-db:5432/auth360?schema=public
       - JWT_SECRET=sua_chave_secreta_aqui
       - NODE_ENV=production
-      - FRONTEND_URL=http://localhost:3002
+      - FRONTEND_URL=http://localhost:3006
+      - KAFKA_BROKERS=kafka:9092
+      - METRICS_PREFIX=auth_service
     depends_on:
       - auth-db
+      - kafka
     networks:
       - fitness360-network
 
@@ -49,9 +72,12 @@ services:
       - DATABASE_URL=postgresql://fitness360:fitness360pass@members-db:5432/members360?schema=public
       - JWT_SECRET=sua_chave_secreta_aqui
       - NODE_ENV=production
-      - FRONTEND_URL=http://localhost:3002
+      - FRONTEND_URL=http://localhost:3006
+      - KAFKA_BROKERS=kafka:9092
+      - METRICS_PREFIX=members_service
     depends_on:
       - members-db
+      - kafka
     networks:
       - fitness360-network
 
@@ -66,9 +92,12 @@ services:
       - DATABASE_URL=postgresql://fitness360:fitness360pass@billing-db:5432/billing360?schema=public
       - JWT_SECRET=sua_chave_secreta_aqui
       - NODE_ENV=production
-      - FRONTEND_URL=http://localhost:3002
+      - FRONTEND_URL=http://localhost:3006
+      - KAFKA_BROKERS=kafka:9092
+      - METRICS_PREFIX=billing_service
     depends_on:
       - billing-db
+      - kafka
     networks:
       - fitness360-network
 
@@ -83,9 +112,12 @@ services:
       - DATABASE_URL=postgresql://fitness360:fitness360pass@feedback-db:5432/feedback360?schema=public
       - JWT_SECRET=sua_chave_secreta_aqui
       - NODE_ENV=production
-      - FRONTEND_URL=http://localhost:3002
+      - FRONTEND_URL=http://localhost:3006
+      - KAFKA_BROKERS=kafka:9092
+      - METRICS_PREFIX=feedback_service
     depends_on:
       - feedback-db
+      - kafka
     networks:
       - fitness360-network
 
@@ -105,7 +137,7 @@ services:
   members-db:
     image: postgres:15
     ports:
-      - "5432:5432"
+      - "5435:5432"
     environment:
       - POSTGRES_USER=fitness360
       - POSTGRES_PASSWORD=fitness360pass
@@ -141,11 +173,129 @@ services:
     networks:
       - fitness360-network
 
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - fitness360-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - fitness360-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: fitness360-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - fitness360-network
+
+  kafka-setup:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      - kafka
+    command: >
+      bash -c "
+        echo -e 'Esperando Kafka estar disponível...'
+        cub kafka-ready -b kafka:9092 1 120
+        echo -e 'Criando tópicos do Kafka...'
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 3 --replication-factor 1 --topic billing-events
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 3 --replication-factor 1 --topic feedback-events
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 3 --replication-factor 1 --topic member-events
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 3 --replication-factor 1 --topic notification-events
+        echo -e 'Tópicos criados com sucesso'
+        kafka-topics --list --bootstrap-server kafka:9092
+      "
+    networks:
+      - fitness360-network
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - fitness360-network
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=fitness360pass
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - fitness360-network
+
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    container_name: alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - fitness360-network
+
 volumes:
   auth_postgres_data:
   members_postgres_data:
   billing_postgres_data:
   feedback_postgres_data:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
 
 networks:
   fitness360-network:

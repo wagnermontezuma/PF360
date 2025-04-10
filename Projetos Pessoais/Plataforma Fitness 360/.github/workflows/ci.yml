@@ -1,0 +1,199 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  backend-lint-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [auth-svc, members-svc, billing-svc, feedback-svc, notifications-svc, workouts-svc, nutrition-svc, api-gateway]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: './backend/${{ matrix.service }}/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd backend/${{ matrix.service }}
+        npm ci
+    
+    - name: Lint
+      run: |
+        cd backend/${{ matrix.service }}
+        npm run lint --if-present
+    
+    - name: Generate Prisma Client
+      run: |
+        cd backend/${{ matrix.service }}
+        npx prisma generate --schema=./prisma/schema.prisma || echo "Prisma schema not found, skipping"
+      
+    - name: Test
+      run: |
+        cd backend/${{ matrix.service }}
+        npm test -- --passWithNoTests
+      env:
+        NODE_ENV: test
+        JWT_SECRET: test_jwt_secret
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+
+  frontend-lint-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: './frontend/app-aluno/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd frontend/app-aluno
+        npm ci
+    
+    - name: Lint
+      run: |
+        cd frontend/app-aluno
+        npm run lint --if-present
+    
+    - name: Test
+      run: |
+        cd frontend/app-aluno
+        npm test --if-present -- --passWithNoTests
+
+  api-compatibility:
+    needs: [backend-lint-test]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Check API Compatibility (Auth <-> Services)
+      run: |
+        echo "Verificando compatibilidade das APIs entre serviços..."
+        
+        # Verificar versões de JWT e refresh token
+        AUTH_JWT_VERSION=$(grep -r "JWT_VERSION" ./backend/auth-svc/src --include="*.ts" | grep -o '[0-9]\+\.[0-9]\+' || echo "1.0")
+        echo "Auth JWT Version: $AUTH_JWT_VERSION"
+        
+        # Verificar se outros serviços suportam a versão do JWT
+        SERVICES=("members-svc" "billing-svc" "feedback-svc" "notifications-svc" "workouts-svc" "nutrition-svc")
+        COMPATIBILITY_ISSUES=0
+        
+        for service in "${SERVICES[@]}"; do
+          if [ -d "./backend/$service" ]; then
+            echo "Verificando compatibilidade de $service..."
+            
+            # Verificar versão do JWT suportada
+            SERVICE_JWT_VERSION=$(grep -r "SUPPORTED_JWT_VERSION" ./backend/$service/src --include="*.ts" | grep -o '[0-9]\+\.[0-9]\+' || echo "1.0")
+            echo "$service JWT Support Version: $SERVICE_JWT_VERSION"
+            
+            # Verificar se as versões são compatíveis (implementação simplificada)
+            if [[ "$AUTH_JWT_VERSION" != "$SERVICE_JWT_VERSION" ]]; then
+              echo "⚠️ Possível incompatibilidade de JWT entre auth-svc ($AUTH_JWT_VERSION) e $service ($SERVICE_JWT_VERSION)"
+              COMPATIBILITY_ISSUES=$((COMPATIBILITY_ISSUES + 1))
+            fi
+            
+            # Verificar dependências de API
+            if grep -q "api-version" ./backend/$service/package.json; then
+              SERVICE_API_VERSION=$(grep "api-version" ./backend/$service/package.json | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "1.0.0")
+              echo "$service API Version: $SERVICE_API_VERSION"
+            fi
+          fi
+        done
+        
+        # Verificar endpoints dos serviços no gateway
+        if [ -d "./backend/api-gateway" ]; then
+          echo "Verificando configuração do API Gateway..."
+          
+          # Verificar se todos os serviços configurados estão presentes
+          for service in "${SERVICES[@]}"; do
+            if ! grep -q "$service" ./backend/api-gateway/src/routes/index.ts; then
+              echo "⚠️ Serviço $service não está configurado no API Gateway"
+              COMPATIBILITY_ISSUES=$((COMPATIBILITY_ISSUES + 1))
+            fi
+          done
+        fi
+        
+        # Verificar modelos Prisma para compatibilidade
+        echo "Verificando compatibilidade de modelos Prisma..."
+        
+        # Verificar se há tabelas com mesmo nome e estrutura diferente
+        DB_MODELS=$(find ./backend -name "schema.prisma" -type f | xargs grep "model" | grep -v "@@" | sort | uniq)
+        DB_MODELS_COUNT=$(echo "$DB_MODELS" | wc -l)
+        DB_MODELS_UNIQUE=$(echo "$DB_MODELS" | sort | uniq | wc -l)
+        
+        if [ "$DB_MODELS_COUNT" -ne "$DB_MODELS_UNIQUE" ]; then
+          echo "⚠️ Existem modelos com mesmo nome em diferentes serviços. Verificar compatibilidade."
+          COMPATIBILITY_ISSUES=$((COMPATIBILITY_ISSUES + 1))
+        fi
+        
+        # Verificar refresh token
+        echo "Verificando configurações de refresh token..."
+        AUTH_REFRESH_CONFIG=$(grep -r "REFRESH_TOKEN_" ./backend/auth-svc/src --include="*.ts" || echo "Não encontrado")
+        echo "Auth Refresh Token Config: $AUTH_REFRESH_CONFIG"
+        
+        # Resultado final
+        if [ $COMPATIBILITY_ISSUES -gt 0 ]; then
+          echo "⚠️ Identificados $COMPATIBILITY_ISSUES problemas potenciais de compatibilidade."
+          exit 1
+        else
+          echo "✅ Verificação de compatibilidade concluída sem problemas."
+        fi
+
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Run npm audit
+      run: |
+        SERVICES=("auth-svc" "members-svc" "billing-svc" "feedback-svc" "notifications-svc" "workouts-svc" "nutrition-svc" "api-gateway")
+        
+        for service in "${SERVICES[@]}"; do
+          if [ -d "./backend/$service" ]; then
+            echo "Executando npm audit em $service..."
+            cd ./backend/$service
+            npm audit --json || true  # Não falhar pipeline por vulnerabilidades de baixa gravidade
+            cd ../../
+          fi
+        done
+        
+        # Verificar frontend
+        if [ -d "./frontend/app-aluno" ]; then
+          echo "Executando npm audit no frontend..."
+          cd ./frontend/app-aluno
+          npm audit --json || true
+        fi
+    
+    - name: Check for hardcoded secrets
+      run: |
+        echo "Verificando segredos hardcoded no código..."
+        
+        # Procurar por possíveis senhas, tokens, chaves ou credenciais no código
+        grep -r -i --include="*.ts" --include="*.js" --include="*.tsx" --include="*.jsx" --include="*.json" \
+          -E "(password|secret|token|key|credential|api.*key).*['\"][a-zA-Z0-9+/=]{8,}['\"]" \
+          --exclude-dir="node_modules" --exclude-dir=".git" --exclude="*.test.*" --exclude="*spec*" ./ || true
+        
+        # Lista de verificação para o relatório de segurança
+        echo "✅ Verificação de segurança concluída. Revise os resultados acima para potenciais problemas." 

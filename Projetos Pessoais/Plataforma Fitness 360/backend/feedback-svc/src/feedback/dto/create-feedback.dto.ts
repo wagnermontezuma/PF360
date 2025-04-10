@@ -1,26 +1,23 @@
-import { IsNotEmpty, IsString, IsUUID, Length, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, Max, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateFeedbackDto {
-  @ApiProperty({ description: 'ID do usuário que está enviando o feedback' })
-  @IsNotEmpty()
-  @IsUUID()
-  userId: string;
+  @ApiProperty({
+    description: 'Nota de avaliação (1-5)',
+    example: 5,
+    minimum: 1,
+    maximum: 5,
+  })
+  @IsNumber()
+  @Min(1)
+  @Max(5)
+  nota: number;
 
-  @ApiProperty({ description: 'Título do feedback' })
+  @ApiProperty({
+    description: 'Comentário detalhado do feedback',
+    example: 'O aplicativo é muito intuitivo e fácil de usar. Estou muito satisfeito com a experiência.',
+  })
+  @IsString()
   @IsNotEmpty()
-  @IsString()
-  @Length(3, 100)
-  title: string;
-
-  @ApiProperty({ description: 'Conteúdo do feedback' })
-  @IsNotEmpty()
-  @IsString()
-  @Length(10, 1000)
-  content: string;
-
-  @ApiProperty({ description: 'Categoria do feedback', required: false })
-  @IsOptional()
-  @IsString()
-  category?: string;
+  comentario: string;
 } 
