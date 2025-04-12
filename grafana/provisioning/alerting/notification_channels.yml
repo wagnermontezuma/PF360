@@ -1,0 +1,98 @@
+apiVersion: 1
+
+contactPoints:
+  - name: "DevOps Team"
+    receivers:
+      - uid: discord-devops
+        type: discord
+        settings:
+          url: ${DISCORD_WEBHOOK_URL}
+          title: "{{ .GroupLabels.alertname }}"
+          message: >-
+            **Status:** {{ if eq .Status "firing" }}:red_circle:{{ else }}:green_circle:{{ end }} {{ .Status | title }}
+            
+            **Alerta:** {{ .CommonLabels.alertname }}
+            **Severidade:** {{ .CommonLabels.severity }}
+            **Serviço:** {{ .CommonLabels.service }}
+            **Tipo:** {{ .CommonLabels.type }}
+            
+            **Descrição:**
+            {{ .CommonAnnotations.description }}
+            
+            **Dashboard:** {{ .CommonAnnotations.dashboardURL }}
+            
+            **Início:** {{ .StartsAt | date "2006-01-02 15:04:05" }}
+          avatar_url: "https://raw.githubusercontent.com/grafana/grafana/main/public/img/grafana_icon.svg"
+          use_discord_username: true
+        disableResolveMessage: false
+
+      - uid: email-team
+        type: email
+        settings:
+          addresses: ${ALERT_EMAILS}
+          singleEmail: false
+          subject: >-
+            [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} - Workout Service
+          html: >-
+            <h2>{{ if eq .Status "firing" }}🔴{{ else }}🟢{{ end }} {{ .Status | title }}: {{ .CommonLabels.alertname }}</h2>
+            
+            <p><strong>Severidade:</strong> {{ .CommonLabels.severity }}</p>
+            <p><strong>Serviço:</strong> {{ .CommonLabels.service }}</p>
+            <p><strong>Tipo:</strong> {{ .CommonLabels.type }}</p>
+            
+            <hr>
+            
+            <h3>Detalhes</h3>
+            <p>{{ .CommonAnnotations.description }}</p>
+            
+            <p><a href="{{ .CommonAnnotations.dashboardURL }}">Ver Dashboard</a></p>
+            
+            <p><strong>Início:</strong> {{ .StartsAt | date "2006-01-02 15:04:05" }}</p>
+            
+            <hr>
+            
+            <h3>Alertas Ativos</h3>
+            <ul>
+            {{ range .Alerts }}
+              <li>{{ .Labels.instance }}: {{ .Annotations.summary }}</li>
+            {{ end }}
+            </ul>
+
+policies:
+  - orgId: 1
+    receiver: "DevOps Team"
+    group_by: ['alertname', 'service']
+    repeat_interval: 4h
+    group_wait: 30s
+    group_interval: 5m
+
+    routes:
+      - receiver: "DevOps Team"
+        matchers:
+          - severity =~ "critical|warning"
+          - service = "workout-service"
+        continue: true
+        group_by: ['severity', 'type']
+        
+        routes:
+          - receiver: "DevOps Team"
+            matchers:
+              - severity = "critical"
+            repeat_interval: 1h
+            group_wait: 0s
+            group_interval: 1m
+
+          - receiver: "DevOps Team"
+            matchers:
+              - type = "database"
+            group_by: ['alertname']
+            repeat_interval: 2h
+
+          - receiver: "DevOps Team"
+            matchers:
+              - type = "cache"
+            group_by: ['alertname']
+            repeat_interval: 2h
+
+templates:
+  - /etc/grafana/provisioning/alerting/templates/*.tmpl 

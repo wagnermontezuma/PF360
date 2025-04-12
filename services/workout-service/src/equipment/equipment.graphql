@@ -1,0 +1,32 @@
+type Equipment {
+  id: ID!
+  name: String!
+  description: String
+  exercises: [Exercise!]
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input CreateEquipmentInput {
+  name: String!
+  description: String
+}
+
+input UpdateEquipmentInput {
+  id: ID!
+  name: String
+  description: String
+}
+
+type Query {
+  equipments: [Equipment!]!
+  equipment(id: ID!): Equipment
+}
+
+type Mutation {
+  createEquipment(createEquipmentInput: CreateEquipmentInput!): Equipment!
+  updateEquipment(updateEquipmentInput: UpdateEquipmentInput!): Equipment!
+  removeEquipment(id: ID!): Equipment
+}
+
+scalar DateTime

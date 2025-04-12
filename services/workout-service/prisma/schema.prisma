@@ -1,0 +1,80 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workout {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  exercises   Exercise[]
+  userId      String
+  isTemplate  Boolean     @default(false)
+  status      WorkoutStatus @default(DRAFT)
+  difficulty  WorkoutDifficulty
+  duration    Int         // em minutos
+  calories    Int?
+  notes       String?
+}
+
+model Exercise {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  sets        Int
+  reps        Int
+  weight      Float?
+  restTime    Int       // em segundos
+  notes       String?
+  workoutId   String
+  workout     Workout   @relation(fields: [workoutId], references: [id])
+  order       Int
+  equipment   Equipment[]
+  muscleGroups MuscleGroup[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Equipment {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  exercises   Exercise[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model MuscleGroup {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  exercises   Exercise[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+enum WorkoutStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum WorkoutDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}

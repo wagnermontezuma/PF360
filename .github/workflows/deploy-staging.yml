@@ -1,0 +1,171 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [ "develop" ]
+  workflow_run:
+    workflows: ["Docker Build & Publish"]
+    types:
+      - completed
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
+    environment: staging
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare environment variables
+        run: |
+          echo "TIMESTAMP=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+          echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Create staging.env file
+        run: |
+          cat > staging.env << EOF
+          # Ambiente de Staging - Gerado em $(date)
+          STAGE=staging
+          NODE_ENV=production
+          FRONTEND_URL=${{ secrets.STAGING_FRONTEND_URL }}
+          
+          # Credenciais de Banco de Dados
+          AUTH_DB_URL=${{ secrets.STAGING_AUTH_DB_URL }}
+          MEMBERS_DB_URL=${{ secrets.STAGING_MEMBERS_DB_URL }}
+          BILLING_DB_URL=${{ secrets.STAGING_BILLING_DB_URL }}
+          FEEDBACK_DB_URL=${{ secrets.STAGING_FEEDBACK_DB_URL }}
+          
+          # Chaves de Segurança
+          JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }}
+          REFRESH_TOKEN_SECRET=${{ secrets.STAGING_REFRESH_TOKEN_SECRET }}
+          
+          # API Endpoints
+          AUTH_API_URL=${{ secrets.STAGING_AUTH_API_URL }}
+          MEMBERS_API_URL=${{ secrets.STAGING_MEMBERS_API_URL }}
+          BILLING_API_URL=${{ secrets.STAGING_BILLING_API_URL }}
+          FEEDBACK_API_URL=${{ secrets.STAGING_FEEDBACK_API_URL }}
+          NOTIFICATIONS_API_URL=${{ secrets.STAGING_NOTIFICATIONS_API_URL }}
+          
+          # Alertas e Notificações
+          SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}
+          ALERT_EMAIL=${{ secrets.ALERT_EMAIL }}
+          
+          # Versão da Release
+          VERSION=dev-${{ env.SHORT_SHA }}-${{ env.TIMESTAMP }}
+          EOF
+
+      - name: Upload config to S3
+        run: |
+          aws s3 cp staging.env s3://${{ secrets.STAGING_CONFIG_BUCKET }}/env/fitness360-staging.env
+
+      - name: Create backup before deployment
+        run: |
+          aws ssm send-command \
+            --instance-ids ${{ secrets.STAGING_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=["cd /home/ec2-user/fitness360 && ./scripts/backup-before-deploy.sh"] \
+            --comment "Backup automático antes da implantação em staging - ${{ env.SHORT_SHA }}"
+          
+          # Aguardar a conclusão do backup
+          sleep 20
+
+      - name: Deploy to staging
+        id: deploy
+        run: |
+          echo "Enviando comando de deploy para o ambiente de staging..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.STAGING_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=["cd /home/ec2-user/fitness360 && aws s3 cp s3://${{ secrets.STAGING_CONFIG_BUCKET }}/env/fitness360-staging.env .env && docker-compose pull && docker-compose up -d"] \
+            --comment "Implantação automática para ambiente de staging - ${{ env.SHORT_SHA }}" \
+            --output text \
+            --query "Command.CommandId")
+          
+          echo "command_id=$COMMAND_ID" >> $GITHUB_OUTPUT
+          
+          # Aguardar a conclusão do comando
+          STATUS="Pending"
+          while [ "$STATUS" == "Pending" ] || [ "$STATUS" == "InProgress" ]; do
+            sleep 10
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id $COMMAND_ID \
+              --instance-id ${{ secrets.STAGING_INSTANCE_ID }} \
+              --query "Status" \
+              --output text)
+            echo "Status do deploy: $STATUS"
+          done
+          
+          if [ "$STATUS" != "Success" ]; then
+            echo "::error::Falha na implantação em staging: $STATUS"
+            exit 1
+          fi
+          
+      - name: Execute health check with automatic rollback
+        id: health_check
+        run: |
+          echo "Agendando verificação de saúde com rollback automático..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.STAGING_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=["cd /home/ec2-user/fitness360 && sudo ./scripts/auto-rollback.sh"] \
+            --comment "Verificação automática de saúde pós-deploy com rollback - ${{ env.SHORT_SHA }}" \
+            --output text \
+            --query "Command.CommandId")
+          
+          echo "command_id=$COMMAND_ID" >> $GITHUB_OUTPUT
+          
+          # Aguardar a conclusão do comando
+          STATUS="Pending"
+          while [ "$STATUS" == "Pending" ] || [ "$STATUS" == "InProgress" ]; do
+            sleep 10
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id $COMMAND_ID \
+              --instance-id ${{ secrets.STAGING_INSTANCE_ID }} \
+              --query "Status" \
+              --output text)
+            echo "Status da verificação de saúde: $STATUS"
+          done
+          
+          if [ "$STATUS" != "Success" ]; then
+            echo "::warning::Verificação de saúde apresentou problemas, possível rollback automático ativado. Verificando resultado..."
+            COMMAND_OUTPUT=$(aws ssm get-command-invocation \
+              --command-id $COMMAND_ID \
+              --instance-id ${{ secrets.STAGING_INSTANCE_ID }} \
+              --query "StandardOutputContent" \
+              --output text)
+            
+            if [[ "$COMMAND_OUTPUT" == *"Rollback concluído com sucesso"* ]]; then
+              echo "::warning::Rollback automático foi executado devido a problemas na implantação."
+              exit 1
+            else
+              echo "::error::Problema na verificação de saúde e o rollback automático não foi bem-sucedido."
+              exit 1
+            fi
+          fi
+          
+      - name: Notify on success
+        if: success()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"✅ Deploy concluído com sucesso para ambiente de Staging!\nVersão: dev-${{ env.SHORT_SHA }}-${{ env.TIMESTAMP }}\nCommit: ${{ github.event.head_commit.message }}"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"❌ Falha no deploy para ambiente de Staging!\nCommit: ${{ github.event.head_commit.message }}"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }} 

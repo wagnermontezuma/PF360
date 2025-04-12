@@ -1,0 +1,64 @@
+name: Deploy to Production
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    
+    - name: Build, tag, and push images
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: pf360
+        IMAGE_TAG: ${{ github.ref_name }}
+      run: |
+        # Build and push frontend images
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY/app-aluno:$IMAGE_TAG ./frontend/app-aluno
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY/app-aluno:$IMAGE_TAG
+        
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY/app-staff:$IMAGE_TAG ./frontend/app-staff
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY/app-staff:$IMAGE_TAG
+        
+        # Build and push backend services
+        for service in auth users training nutrition notifications; do
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY/$service:$IMAGE_TAG ./backend/$service-svc
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY/$service:$IMAGE_TAG
+        done
+    
+    - name: Deploy to ECS
+      run: |
+        aws ecs update-service --cluster pf360-cluster --service app-aluno --force-new-deployment
+        aws ecs update-service --cluster pf360-cluster --service app-staff --force-new-deployment
+        for service in auth users training nutrition notifications; do
+          aws ecs update-service --cluster pf360-cluster --service $service --force-new-deployment
+        done
+    
+    - name: Health Check
+      run: |
+        ./scripts/healthcheck.sh
+    
+    - name: Notify on Success
+      if: success()
+      uses: slackapi/slack-github-action@v1
+      with:
+        channel-id: 'deployments'
+        slack-message: "✅ Deploy to production successful! Version: ${{ github.ref_name }}"
+      env:
+        SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }} 

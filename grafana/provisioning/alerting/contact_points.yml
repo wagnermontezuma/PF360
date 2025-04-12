@@ -1,0 +1,34 @@
+apiVersion: 1
+
+contactPoints:
+  - name: Equipe DevOps
+    receivers:
+      - uid: slack-devops
+        type: slack
+        settings:
+          url: ${SLACK_WEBHOOK_URL}
+          title: '{{ template "workout_service.slack.title" . }}'
+          text: '{{ template "workout_service.slack.message" . }}'
+          username: Alertas Workout Service
+          icon_emoji: ':muscle:'
+        disableResolveMessage: false
+      - uid: email-devops
+        type: email
+        settings:
+          addresses: devops@fitness360.com.br
+          subject: '{{ template "workout_service.email.subject" . }}'
+          message: '{{ template "workout_service.email.message" . }}'
+          singleEmail: true
+        disableResolveMessage: false
+
+  - name: Equipe Desenvolvimento
+    receivers:
+      - uid: slack-dev
+        type: slack
+        settings:
+          url: ${SLACK_WEBHOOK_URL}
+          title: '{{ template "workout_service.slack.title" . }}'
+          text: '{{ template "workout_service.slack.message" . }}'
+          username: Alertas Workout Service
+          icon_emoji: ':wrench:'
+        disableResolveMessage: false 

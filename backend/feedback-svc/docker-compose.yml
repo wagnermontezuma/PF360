@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  feedback-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005
+      - DATABASE_URL=postgresql://fitness360:fitness360pass@db:5432/feedback360?schema=public
+      - JWT_SECRET=sua_chave_secreta_aqui
+      - NODE_ENV=production
+      - FRONTEND_URL=http://localhost:3002
+    depends_on:
+      - db
+    networks:
+      - fitness360-network
+
+  db:
+    image: postgres:15
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=fitness360
+      - POSTGRES_PASSWORD=fitness360pass
+      - POSTGRES_DB=feedback360
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+volumes:
+  postgres_data:
+
+networks:
+  fitness360-network:
+    name: fitness360-network 

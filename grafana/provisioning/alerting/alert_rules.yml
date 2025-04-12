@@ -1,0 +1,673 @@
+apiVersion: 1
+
+groups:
+  - name: Workout Service Alerts
+    folder: Workout Service
+    interval: 1m
+    rules:
+      - title: Alta Latência nas Operações
+        condition: last() > 1
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: rate(resource_operation_duration_seconds_sum[5m]) / rate(resource_operation_duration_seconds_count[5m])
+              legendFormat: '{{resource_type}} - {{operation}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Operação com alta latência detectada
+          description: A operação {{ $labels.operation }} no recurso {{ $labels.resource_type }} está com latência média > 1s nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+
+      - title: Alta Taxa de Erros
+        condition: last() > 0.05
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: sum(rate(resource_operations_total{status="error"}[5m])) / sum(rate(resource_operations_total[5m]))
+              legendFormat: Taxa de Erro Global
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Taxa de erro elevada detectada
+          description: A taxa de erro global está > 5% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: critical
+          service: workout-service
+
+      - title: Serviço Indisponível
+        condition: last() == 0
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: up{job="workout-service"}
+              legendFormat: Status do Serviço
+        noDataState: Alerting
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: Serviço indisponível
+          description: O serviço workout-service está indisponível
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: critical
+          service: workout-service
+
+      - title: Alta Taxa de Erros por Recurso
+        condition: last() > 0.1
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: sum(rate(resource_operations_total{status="error"}[5m])) by (resource_type) / sum(rate(resource_operations_total[5m])) by (resource_type)
+              legendFormat: '{{resource_type}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alta taxa de erros em recurso específico
+          description: O recurso {{ $labels.resource_type }} está com taxa de erro > 10% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+
+  - name: System Metrics Alerts
+    folder: Workout Service
+    interval: 1m
+    rules:
+      - title: Alto Uso de CPU
+        condition: last() > 80
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+              legendFormat: 'CPU Usage - {{instance}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alto uso de CPU detectado
+          description: O uso de CPU está > 80% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: system
+
+      - title: Alto Uso de Memória
+        condition: last() > 85
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+              legendFormat: 'Memory Usage - {{instance}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alto uso de memória detectado
+          description: O uso de memória está > 85% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: system
+
+      - title: Disco Quase Cheio
+        condition: last() > 85
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: 100 - ((node_filesystem_avail_bytes{mountpoint="/"} * 100) / node_filesystem_size_bytes{mountpoint="/"})
+              legendFormat: 'Disk Usage - {{instance}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Disco com pouco espaço
+          description: O uso do disco está > 85% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: system
+
+      - title: Alta Carga de Rede
+        condition: last() > 80000000  # 80MB/s
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: rate(node_network_receive_bytes_total{device!~"lo|veth.*"}[5m]) + rate(node_network_transmit_bytes_total{device!~"lo|veth.*"}[5m])
+              legendFormat: 'Network I/O - {{instance}} {{device}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alta utilização de rede
+          description: O tráfego de rede está > 80MB/s nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: system
+
+      - title: Alto Número de File Descriptors
+        condition: last() > 80
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: (process_open_fds / process_max_fds) * 100
+              legendFormat: 'File Descriptors - {{instance}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alto uso de file descriptors
+          description: O uso de file descriptors está > 80% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: system
+
+      - title: Processos Zumbis
+        condition: last() > 0
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: node_procs_state{state="zombie"}
+              legendFormat: 'Zombie Processes - {{instance}}'
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: Processos zumbis detectados
+          description: Existem processos zumbis no sistema por mais de 10 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: system
+
+      - title: Alto Tempo de Resposta do Sistema
+        condition: last() > 0.1
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: node_load1 / on(instance) machine_cpu_cores
+              legendFormat: 'Load Average per CPU - {{instance}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Sistema sobrecarregado
+          description: A carga média por CPU está > 0.1 nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: system
+
+      - title: Swap em Uso
+        condition: last() > 30
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: (node_memory_SwapTotal_bytes - node_memory_SwapFree_bytes) / node_memory_SwapTotal_bytes * 100
+              legendFormat: 'Swap Usage - {{instance}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alto uso de swap
+          description: O uso de memória swap está > 30% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: system
+
+  - name: Database Metrics Alerts
+    folder: Workout Service
+    interval: 1m
+    rules:
+      - title: Alta Latência de Queries
+        condition: last() > 1
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: rate(pg_stat_activity_max_tx_duration{datname="workout_service"}[5m])
+              legendFormat: 'Query Duration - {{datname}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Queries lentas detectadas
+          description: Queries estão demorando mais de 1s em média nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: database
+
+      - title: Pool de Conexões Esgotado
+        condition: last() > 80
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: (pg_stat_activity_count{datname="workout_service"} / pg_settings_max_connections{datname="workout_service"}) * 100
+              legendFormat: 'Connection Pool - {{datname}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Pool de conexões próximo do limite
+          description: Uso do pool de conexões > 80% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: critical
+          service: workout-service
+          type: database
+
+      - title: Deadlocks Detectados
+        condition: last() > 0
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: rate(pg_stat_database_deadlocks{datname="workout_service"}[5m])
+              legendFormat: 'Deadlocks - {{datname}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Deadlocks no banco de dados
+          description: Deadlocks detectados nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: critical
+          service: workout-service
+          type: database
+
+      - title: Cache Hit Ratio Baixo
+        condition: last() < 0.95
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: pg_stat_database_blks_hit{datname="workout_service"} / (pg_stat_database_blks_hit{datname="workout_service"} + pg_stat_database_blks_read{datname="workout_service"})
+              legendFormat: 'Cache Hit Ratio - {{datname}}'
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: Cache hit ratio abaixo do ideal
+          description: Taxa de acerto do cache < 95% nos últimos 15 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: database
+
+  - name: Application Metrics Alerts
+    folder: Workout Service
+    interval: 1m
+    rules:
+      - title: Alta Latência de Requisições HTTP
+        condition: last() > 0.5
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: rate(http_request_duration_seconds_sum{service="workout-service"}[5m]) / rate(http_request_duration_seconds_count{service="workout-service"}[5m])
+              legendFormat: 'HTTP {{method}} {{path}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alta latência em endpoints HTTP
+          description: Endpoint {{ $labels.method }} {{ $labels.path }} com latência média > 500ms nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: application
+
+      - title: Heap Usage Alto
+        condition: last() > 85
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: (nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes) * 100
+              legendFormat: 'Heap Usage'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alto uso de heap detectado
+          description: Uso do heap > 85% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: application
+
+      - title: GC Duration Alto
+        condition: last() > 100
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: rate(nodejs_gc_duration_seconds_sum[5m]) * 1000
+              legendFormat: 'GC Duration {{gc_type}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Garbage Collection demorado
+          description: Duração média do GC > 100ms nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: application
+
+      - title: Event Loop Lag
+        condition: last() > 100
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: nodejs_eventloop_lag_seconds * 1000
+              legendFormat: 'Event Loop Lag'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Event loop com lag detectado
+          description: Event loop lag > 100ms nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: application
+
+      - title: Alta Taxa de Rejeição de Requisições
+        condition: last() > 0.05
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: sum(rate(http_requests_total{status=~"5.*"}[5m])) / sum(rate(http_requests_total[5m]))
+              legendFormat: 'Rejection Rate'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alta taxa de rejeição de requisições
+          description: Taxa de rejeição > 5% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: critical
+          service: workout-service
+          type: application
+
+  - name: Cache Metrics Alerts
+    folder: Workout Service
+    interval: 1m
+    rules:
+      - title: Redis Memory Alto
+        condition: last() > 85
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: 100 * (redis_memory_used_bytes / redis_memory_max_bytes)
+              legendFormat: 'Redis Memory Usage'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alto uso de memória no Redis
+          description: Uso de memória do Redis > 85% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: cache
+
+      - title: Redis Conexões Esgotadas
+        condition: last() > 80
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: 100 * (redis_connected_clients / redis_config_maxclients)
+              legendFormat: 'Redis Connections'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Pool de conexões Redis próximo do limite
+          description: Uso do pool de conexões Redis > 80% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: critical
+          service: workout-service
+          type: cache
+
+      - title: Redis Latência Alta
+        condition: last() > 0.1
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: rate(redis_commands_duration_seconds_sum[5m]) / rate(redis_commands_duration_seconds_count[5m])
+              legendFormat: 'Redis Command Latency'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alta latência nos comandos Redis
+          description: Latência média dos comandos Redis > 100ms nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: cache
+
+      - title: Cache Miss Rate Alto
+        condition: last() > 0.2
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: sum(rate(redis_keyspace_misses_total[5m])) / (sum(rate(redis_keyspace_hits_total[5m])) + sum(rate(redis_keyspace_misses_total[5m])))
+              legendFormat: 'Cache Miss Rate'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alta taxa de cache miss
+          description: Taxa de cache miss > 20% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: cache
+
+      - title: Redis Fragmentação Alta
+        condition: last() > 1.5
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: redis_memory_fragmentation_ratio
+              legendFormat: 'Memory Fragmentation'
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: Alta fragmentação de memória Redis
+          description: Ratio de fragmentação > 1.5 nos últimos 15 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: cache
+
+  - name: Business Metrics Alerts
+    folder: Workout Service
+    interval: 1m
+    rules:
+      - title: Alta Taxa de Falha em Criação de Treinos
+        condition: last() > 0.1
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: sum(rate(resource_operations_total{resource_type="workout",operation="create",status="error"}[5m])) / sum(rate(resource_operations_total{resource_type="workout",operation="create"}[5m]))
+              legendFormat: 'Workout Creation Failure Rate'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alta taxa de falha na criação de treinos
+          description: Taxa de falha na criação de treinos > 10% nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: business
+
+      - title: Volume Anormal de Operações
+        condition: last() > 2
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: abs(rate(resource_operations_total[5m]) - avg_over_time(rate(resource_operations_total[1h])[30m:5m])) / avg_over_time(rate(resource_operations_total[1h])[30m:5m])
+              legendFormat: 'Operation Volume Anomaly - {{resource_type}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Volume anormal de operações detectado
+          description: Volume de operações desviou mais de 200% da média da última hora
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: business
+
+      - title: Alta Taxa de Atualização de Exercícios
+        condition: last() > 0.3
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: sum(rate(resource_operations_total{resource_type="exercise",operation="update"}[5m])) / sum(rate(resource_operations_total{resource_type="exercise"}[5m]))
+              legendFormat: 'Exercise Update Rate'
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: Alta frequência de atualizações de exercícios
+          description: Taxa de atualização de exercícios > 30% do total de operações nos últimos 15 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: business
+
+      - title: Baixa Utilização de Cache em Treinos
+        condition: last() < 0.7
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: sum(rate(resource_operations_total{resource_type="workout",cache_hit="true"}[5m])) / sum(rate(resource_operations_total{resource_type="workout"}[5m]))
+              legendFormat: 'Workout Cache Hit Rate'
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: Baixa taxa de cache hit em treinos
+          description: Taxa de cache hit para treinos < 70% nos últimos 15 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: business
+
+      - title: Alta Taxa de Deleção de Recursos
+        condition: last() > 0.1
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: sum(rate(resource_operations_total{operation="delete"}[5m])) / sum(rate(resource_operations_total[5m]))
+              legendFormat: 'Delete Operations Rate - {{resource_type}}'
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Alta frequência de deleções detectada
+          description: Taxa de deleção > 10% do total de operações nos últimos 5 minutos
+          dashboardURL: http://localhost:3001/d/workout-service/workout-service-overview
+          startsAt: '{{ $values.StartTime }}'
+        labels:
+          severity: warning
+          service: workout-service
+          type: business 

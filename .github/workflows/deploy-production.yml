@@ -1,0 +1,221 @@
+name: Deploy to Production
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Confirmar implantação em produção?'
+        required: true
+        default: 'yes'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate deployment
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.confirm }}" != "yes" ]]; then
+            echo "::error::Deployment aborted by user"
+            exit 1
+          fi
+          echo "Validação aprovada. Prosseguindo com o deploy em produção."
+
+  deploy-production:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare environment variables
+        run: |
+          echo "TIMESTAMP=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+          
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Extract version from tag
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "VERSION=$VERSION" >> $GITHUB_ENV
+          else
+            # Use SHA for manual deploys
+            echo "VERSION=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Create production.env file
+        run: |
+          cat > production.env << EOF
+          # Ambiente de Produção - Gerado em $(date)
+          STAGE=production
+          NODE_ENV=production
+          FRONTEND_URL=${{ secrets.PRODUCTION_FRONTEND_URL }}
+          
+          # Credenciais de Banco de Dados
+          AUTH_DB_URL=${{ secrets.PRODUCTION_AUTH_DB_URL }}
+          MEMBERS_DB_URL=${{ secrets.PRODUCTION_MEMBERS_DB_URL }}
+          BILLING_DB_URL=${{ secrets.PRODUCTION_BILLING_DB_URL }}
+          FEEDBACK_DB_URL=${{ secrets.PRODUCTION_FEEDBACK_DB_URL }}
+          
+          # Chaves de Segurança
+          JWT_SECRET=${{ secrets.PRODUCTION_JWT_SECRET }}
+          REFRESH_TOKEN_SECRET=${{ secrets.PRODUCTION_REFRESH_TOKEN_SECRET }}
+          
+          # API Endpoints
+          AUTH_API_URL=${{ secrets.PRODUCTION_AUTH_API_URL }}
+          MEMBERS_API_URL=${{ secrets.PRODUCTION_MEMBERS_API_URL }}
+          BILLING_API_URL=${{ secrets.PRODUCTION_BILLING_API_URL }}
+          FEEDBACK_API_URL=${{ secrets.PRODUCTION_FEEDBACK_API_URL }}
+          NOTIFICATIONS_API_URL=${{ secrets.PRODUCTION_NOTIFICATIONS_API_URL }}
+          
+          # Alertas e Notificações
+          SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}
+          ALERT_EMAIL=${{ secrets.ALERT_EMAIL }}
+          
+          # Versão da Release
+          VERSION=${{ env.VERSION }}
+          RELEASE_TIMESTAMP=${{ env.TIMESTAMP }}
+          EOF
+
+      - name: Upload config to S3
+        run: |
+          aws s3 cp production.env s3://${{ secrets.PRODUCTION_CONFIG_BUCKET }}/env/fitness360-production.env
+
+      - name: Create backup before deployment
+        run: |
+          aws ssm send-command \
+            --instance-ids ${{ secrets.PRODUCTION_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=["cd /home/ec2-user/fitness360 && ./scripts/backup-before-deploy.sh"] \
+            --comment "Backup automático antes da implantação em produção - ${{ env.VERSION }}"
+          
+          # Aguardar a conclusão do backup
+          sleep 30
+
+      - name: Deploy to production
+        id: deploy
+        run: |
+          echo "Enviando comando de deploy para o ambiente de produção..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.PRODUCTION_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=["cd /home/ec2-user/fitness360 && aws s3 cp s3://${{ secrets.PRODUCTION_CONFIG_BUCKET }}/env/fitness360-production.env .env && docker-compose pull && docker-compose up -d"] \
+            --comment "Implantação automática para ambiente de produção - ${{ env.VERSION }}" \
+            --output text \
+            --query "Command.CommandId")
+          
+          echo "command_id=$COMMAND_ID" >> $GITHUB_OUTPUT
+          
+          # Aguardar a conclusão do comando
+          STATUS="Pending"
+          while [ "$STATUS" == "Pending" ] || [ "$STATUS" == "InProgress" ]; do
+            sleep 10
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id $COMMAND_ID \
+              --instance-id ${{ secrets.PRODUCTION_INSTANCE_ID }} \
+              --query "Status" \
+              --output text)
+            echo "Status do deploy: $STATUS"
+          done
+          
+          if [ "$STATUS" != "Success" ]; then
+            echo "::error::Falha na implantação em produção: $STATUS"
+            exit 1
+          fi
+
+      - name: Execute health check with automatic rollback
+        id: health_check
+        run: |
+          echo "Agendando verificação de saúde com rollback automático..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.PRODUCTION_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=["cd /home/ec2-user/fitness360 && sudo ./scripts/auto-rollback.sh"] \
+            --comment "Verificação automática de saúde pós-deploy com rollback - ${{ env.VERSION }}" \
+            --output text \
+            --query "Command.CommandId")
+          
+          echo "command_id=$COMMAND_ID" >> $GITHUB_OUTPUT
+          
+          # Aguardar a conclusão do comando
+          STATUS="Pending"
+          while [ "$STATUS" == "Pending" ] || [ "$STATUS" == "InProgress" ]; do
+            sleep 15
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id $COMMAND_ID \
+              --instance-id ${{ secrets.PRODUCTION_INSTANCE_ID }} \
+              --query "Status" \
+              --output text)
+            echo "Status da verificação de saúde: $STATUS"
+          done
+          
+          if [ "$STATUS" != "Success" ]; then
+            echo "::warning::Verificação de saúde apresentou problemas, possível rollback automático ativado. Verificando resultado..."
+            COMMAND_OUTPUT=$(aws ssm get-command-invocation \
+              --command-id $COMMAND_ID \
+              --instance-id ${{ secrets.PRODUCTION_INSTANCE_ID }} \
+              --query "StandardOutputContent" \
+              --output text)
+            
+            if [[ "$COMMAND_OUTPUT" == *"Rollback concluído com sucesso"* ]]; then
+              echo "::warning::Rollback automático foi executado devido a problemas na implantação."
+              exit 1
+            else
+              echo "::error::Problema na verificação de saúde e o rollback automático não foi bem-sucedido."
+              exit 1
+            fi
+          fi
+
+      - name: Create Release
+        if: github.event_name == 'push' && success()
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ env.VERSION }}
+          body: |
+            # Fitness 360 - Release ${{ env.VERSION }}
+            
+            Implantação em produção concluída em $(date)
+            
+            ## Alterações Incluídas
+            ${{ github.event.head_commit.message }}
+            
+            ## Status
+            ✅ Implantação automática concluída com sucesso
+            
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          
+      - name: Notify deployment success
+        if: success()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"🚀 Deploy em PRODUÇÃO concluído com SUCESSO!\nVersão: ${{ env.VERSION }}"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify deployment failure
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"❌ FALHA no deploy em PRODUÇÃO!\nVersão: ${{ env.VERSION }}"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
+          
+          # Notificar equipe via email em caso de falha
+          aws ses send-email \
+            --from "alerts@fitness360.com.br" \
+            --to "devops@fitness360.com.br" \
+            --subject "ALERTA: Falha na implantação em produção" \
+            --text "Houve uma falha na implantação da versão ${{ env.VERSION }} em produção. Verificar logs para mais detalhes." 

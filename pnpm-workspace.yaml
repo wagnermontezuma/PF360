@@ -1,0 +1,9 @@
+packages:
+  # Todos os pacotes em subdiretorios de packages/
+  - 'packages/**'
+  # Todos os serviços em subdiretorios de services/
+  - 'services/**'
+  # Frontend apps
+  - 'apps/**'
+  # Shared packages
+  - 'shared/**' 

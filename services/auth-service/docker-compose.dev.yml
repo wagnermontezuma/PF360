@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fitness360_auth?schema=public
+      - JWT_ACCESS_SECRET=seu_segredo_super_secreto_access
+      - JWT_REFRESH_SECRET=seu_segredo_super_secreto_refresh
+      - CORS_ORIGIN=http://localhost:3000
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: pnpm start:dev
+    depends_on:
+      - db
+    networks:
+      - fitness360-network
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fitness360_auth
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - fitness360-network
+
+volumes:
+  postgres_data:
+
+networks:
+  fitness360-network:
+    driver: bridge 

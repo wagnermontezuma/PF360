@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/fitness360_auth_test?schema=public
+      - JWT_ACCESS_SECRET=test_access_secret
+      - JWT_REFRESH_SECRET=test_refresh_secret
+      - CORS_ORIGIN=http://localhost:3000
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: pnpm test:e2e
+    depends_on:
+      - db
+    networks:
+      - fitness360-network-test
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fitness360_auth_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - fitness360-network-test
+
+networks:
+  fitness360-network-test:
+    driver: bridge 

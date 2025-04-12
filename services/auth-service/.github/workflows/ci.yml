@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'services/auth-service/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'services/auth-service/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+
+    - name: Install dependencies
+      run: pnpm install
+      working-directory: services/auth-service
+
+    - name: Run tests
+      run: docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
+      working-directory: services/auth-service
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: services/auth-service
+        push: true
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/fitness360-auth:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/fitness360-auth:${{ github.sha }}
+        cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/fitness360-auth:buildcache
+        cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/fitness360-auth:buildcache,mode=max 
